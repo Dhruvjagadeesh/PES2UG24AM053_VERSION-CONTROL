@@ -9,7 +9,7 @@
 
 #include "pes.h"
 
-#define MAX_INDEX_ENTRIES 10000
+#define MAX_INDEX_ENTRIES 256
 
 typedef struct {
     uint32_t mode;          // File mode (100644, 100755, etc.)

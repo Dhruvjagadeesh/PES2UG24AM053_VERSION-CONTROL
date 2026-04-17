@@ -16,6 +16,7 @@
 // TODO functions:     index_load, index_save, index_add
 
 #include "index.h"
+#include "tree.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -135,10 +136,36 @@ int index_status(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_load(Index *index) {
-    // TODO: Implement index loading
-    // (See Lab Appendix for logical steps)
-    (void)index;
-    return -1;
+    index->count = 0;
+
+    FILE *f = fopen(INDEX_FILE, "r");
+    if (!f) {
+        // No index file yet — empty index is fine
+        return 0;
+    }
+
+    char hex[HASH_HEX_SIZE + 1];
+    uint32_t mode;
+    uint64_t mtime;
+    uint32_t size;
+    char path[512];
+
+    while (fscanf(f, "%o %64s %llu %u %511s\n",
+                  &mode, hex,
+                  (unsigned long long *)&mtime,
+                  &size, path) == 5) {
+        if (index->count >= MAX_INDEX_ENTRIES) break;
+        IndexEntry *e = &index->entries[index->count];
+        e->mode = mode;
+        if (hex_to_hash(hex, &e->hash) != 0) { fclose(f); return -1; }
+        e->mtime_sec = mtime;
+        e->size = size;
+        snprintf(e->path, sizeof(e->path), "%s", path);
+        index->count++;
+    }
+
+    fclose(f);
+    return 0;
 }
 
 // Save the index to .pes/index atomically.
@@ -151,11 +178,39 @@ int index_load(Index *index) {
 //   - rename                           : atomically moving the temp file over the old index
 //
 // Returns 0 on success, -1 on error.
+static int compare_index_entries(const void *a, const void *b) {
+    return strcmp(((const IndexEntry *)a)->path, ((const IndexEntry *)b)->path);
+}
+
 int index_save(const Index *index) {
-    // TODO: Implement atomic index saving
-    // (See Lab Appendix for logical steps)
-    (void)index;
-    return -1;
+    // Heap-allocate the sorted copy — Index is ~5MB, too large for the stack
+    Index *sorted = malloc(sizeof(Index));
+    if (!sorted) return -1;
+    *sorted = *index;
+    qsort(sorted->entries, sorted->count, sizeof(IndexEntry), compare_index_entries);
+
+    char tmp_path[64];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", INDEX_FILE);
+
+    FILE *f = fopen(tmp_path, "w");
+    if (!f) { free(sorted); return -1; }
+
+    for (int i = 0; i < sorted->count; i++) {
+        const IndexEntry *e = &sorted->entries[i];
+        char hex[HASH_HEX_SIZE + 1];
+        hash_to_hex(&e->hash, hex);
+        fprintf(f, "%o %s %llu %u %s\n",
+                e->mode, hex,
+                (unsigned long long)e->mtime_sec,
+                e->size, e->path);
+    }
+
+    fflush(f);
+    fsync(fileno(f));
+    fclose(f);
+    free(sorted);
+
+    return rename(tmp_path, INDEX_FILE);
 }
 
 // Stage a file for the next commit.
@@ -167,9 +222,150 @@ int index_save(const Index *index) {
 //   - index_find                       : checking if the file is already staged
 //
 // Returns 0 on success, -1 on error.
+// Forward declaration
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
+
 int index_add(Index *index, const char *path) {
-    // TODO: Implement file staging
-    // (See Lab Appendix for logical steps)
-    (void)index; (void)path;
-    return -1;
+    // 1. Read file contents
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "error: cannot open '%s'\n", path);
+        return -1;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (file_size < 0) { fclose(f); return -1; }
+
+    uint8_t *contents = malloc((size_t)file_size + 1);
+    if (!contents) { fclose(f); return -1; }
+
+    if (file_size > 0 && fread(contents, 1, (size_t)file_size, f) != (size_t)file_size) {
+        free(contents); fclose(f); return -1;
+    }
+    fclose(f);
+
+    // 2. Write as blob object
+    ObjectID blob_id;
+    if (object_write(OBJ_BLOB, contents, (size_t)file_size, &blob_id) != 0) {
+        free(contents); return -1;
+    }
+    free(contents);
+
+    // 3. Get file metadata
+    struct stat st;
+    if (lstat(path, &st) != 0) return -1;
+
+    uint32_t mode;
+    if (S_ISDIR(st.st_mode))        mode = 0040000;
+    else if (st.st_mode & S_IXUSR)  mode = 0100755;
+    else                             mode = 0100644;
+
+    // 4. Update or add index entry
+    IndexEntry *existing = index_find(index, path);
+    if (existing) {
+        existing->hash     = blob_id;
+        existing->mode     = mode;
+        existing->mtime_sec = (uint64_t)st.st_mtime;
+        existing->size     = (uint32_t)st.st_size;
+    } else {
+        if (index->count >= MAX_INDEX_ENTRIES) return -1;
+        IndexEntry *e = &index->entries[index->count++];
+        e->hash      = blob_id;
+        e->mode      = mode;
+        e->mtime_sec = (uint64_t)st.st_mtime;
+        e->size      = (uint32_t)st.st_size;
+        snprintf(e->path, sizeof(e->path), "%s", path);
+    }
+
+    return index_save(index);
+}
+// ─── tree_from_index (lives here to avoid linking index.o into test_tree) ───
+
+// Forward declarations from object.c and tree.c
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
+int tree_serialize(const Tree *tree, void **data_out, size_t *len_out);
+
+// Recursive helper: build a tree for entries under `prefix`.
+static int write_tree_level(IndexEntry **entries, int count, const char *prefix, ObjectID *id_out) {
+    Tree tree;
+    tree.count = 0;
+
+    int i = 0;
+    while (i < count) {
+        const char *rel = entries[i]->path + strlen(prefix);
+        char *slash = strchr(rel, '/');
+
+        if (slash == NULL) {
+            // Regular file at this directory level
+            TreeEntry *te = &tree.entries[tree.count++];
+            te->mode = entries[i]->mode;
+            te->hash = entries[i]->hash;
+            snprintf(te->name, sizeof(te->name), "%s", rel);
+            i++;
+        } else {
+            // Subdirectory — collect all entries sharing this subdir prefix
+            size_t dir_len = (size_t)(slash - rel);
+            char dir_name[256];
+            if (dir_len >= sizeof(dir_name)) return -1;
+            memcpy(dir_name, rel, dir_len);
+            dir_name[dir_len] = '\0';
+
+            char sub_prefix[512];
+            snprintf(sub_prefix, sizeof(sub_prefix), "%s%s/", prefix, dir_name);
+            size_t sub_prefix_len = strlen(sub_prefix);
+
+            int j = i;
+            while (j < count && strncmp(entries[j]->path, sub_prefix, sub_prefix_len) == 0)
+                j++;
+
+            // Recursively build the subtree
+            ObjectID sub_id;
+            if (write_tree_level(entries + i, j - i, sub_prefix, &sub_id) != 0)
+                return -1;
+
+            TreeEntry *te = &tree.entries[tree.count++];
+            te->mode = 0040000;
+            te->hash = sub_id;
+            snprintf(te->name, sizeof(te->name), "%s", dir_name);
+
+            i = j;
+        }
+    }
+
+    void *data;
+    size_t len;
+    if (tree_serialize(&tree, &data, &len) != 0) return -1;
+    int rc = object_write(OBJ_TREE, data, len, id_out);
+    free(data);
+    return rc;
+}
+
+static int compare_entry_ptrs(const void *a, const void *b) {
+    return strcmp((*(const IndexEntry **)a)->path, (*(const IndexEntry **)b)->path);
+}
+
+int tree_from_index(ObjectID *id_out) {
+    Index index;
+    if (index_load(&index) != 0) return -1;
+
+    if (index.count == 0) {
+        Tree empty;
+        empty.count = 0;
+        void *data; size_t len;
+        if (tree_serialize(&empty, &data, &len) != 0) return -1;
+        int rc = object_write(OBJ_TREE, data, len, id_out);
+        free(data);
+        return rc;
+    }
+
+    IndexEntry **ptrs = malloc(index.count * sizeof(IndexEntry *));
+    if (!ptrs) return -1;
+    for (int i = 0; i < index.count; i++) ptrs[i] = &index.entries[i];
+    qsort(ptrs, index.count, sizeof(IndexEntry *), compare_entry_ptrs);
+
+    int rc = write_tree_level(ptrs, index.count, "", id_out);
+    free(ptrs);
+    return rc;
 }
