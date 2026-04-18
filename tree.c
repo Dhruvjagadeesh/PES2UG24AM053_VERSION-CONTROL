@@ -12,6 +12,7 @@
 // Phase 2: root level file handling
 // Phase 2: subdirectory grouping logic
 // Phase 2: recursive subtree building
+// Phase 2: sort entries for deterministic output
 #include "tree.h"
 #include <stdio.h>
 #include <stdlib.h>
