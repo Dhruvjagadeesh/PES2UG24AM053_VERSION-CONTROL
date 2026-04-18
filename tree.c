@@ -9,6 +9,8 @@
 // Example single entry (conceptual):
 //   "100644 hello.txt\0" followed by 32 raw bytes of SHA-256
 // Phase 2: tree entry serialization
+// Phase 2: root level file handling
+
 #include "tree.h"
 #include <stdio.h>
 #include <stdlib.h>
