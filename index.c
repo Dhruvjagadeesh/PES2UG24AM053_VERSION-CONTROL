@@ -17,6 +17,7 @@
 // Phase 3: index_load implemented
 // Phase 3: MAX_INDEX_ENTRIES restored to 10000
 // Phase 3: index_save with atomic rename
+// Phase 3: index_add file reading and blob write
 
 #include "index.h"
 #include "tree.h"
