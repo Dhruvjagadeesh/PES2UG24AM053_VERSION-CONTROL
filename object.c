@@ -10,6 +10,7 @@
 // Phase 1: header construction complete
 // Phase 1: SHA-256 hashing added
 // Phase 1: atomic write via temp file and rename
+// Phase 1: object_read integrity check added
 
 #include "pes.h"
 #include <stdio.h>
