@@ -600,3 +600,63 @@ The following questions cover filesystem concepts beyond the implementation scop
 - **Git Internals** (Pro Git book): https://git-scm.com/book/en/v2/Git-Internals-Plumbing-and-Porcelain
 - **Git from the inside out**: https://codewords.recurse.com/issues/two/git-from-the-inside-out
 - **The Git Parable**: https://tom.preston-werner.com/2009/05/19/the-git-parable.html
+
+
+---
+
+## Lab Report — PES2UG24AM053
+
+### Screenshot 1A — test_objects passing
+![1A](<img width="1799" height="341" alt="image" src="https://github.com/user-attachments/assets/9d5b1cf6-ea21-4e6d-bb40-58bf9919bd06" />)
+
+### Screenshot 1B — Sharded object directory
+![1B](<img width="1826" height="223" alt="image" src="https://github.com/user-attachments/assets/7efc1611-4ee9-46ab-9093-dedf6d8b1877" />)
+
+### Screenshot 2A — test_tree passing
+![2A](<img width="1697" height="242" alt="image" src="https://github.com/user-attachments/assets/c90d3cef-b865-47d7-b41a-064dc6389d84" />)
+
+### Screenshot 2B — xxd of tree object
+![2B](<img width="1649" height="773" alt="image" src="https://github.com/user-attachments/assets/1db8dd14-ec4e-40b6-b8b6-2df71e5968a9" />)
+
+### Screenshot 3A — pes init → add → status
+![3A](<img width="1619" height="760" alt="image" src="https://github.com/user-attachments/assets/52395b2e-caa2-47cd-b797-e86480e74e8a" />
+)
+
+### Screenshot 3B — cat .pes/index
+![3B](<img width="1776" height="206" alt="image" src="https://github.com/user-attachments/assets/59d105c3-1a12-4486-bff7-fb519c1bafea" />
+)
+
+### Screenshot 4A — pes log with 3 commits
+![4A](<img width="1094" height="773" alt="image" src="https://github.com/user-attachments/assets/6fb56b1b-7b08-4578-8a67-7b6d788510bf" />
+)
+
+### Screenshot 4B — find .pes -type f
+![4B](<img width="1800" height="576" alt="image" src="https://github.com/user-attachments/assets/d9def598-6016-40ee-8305-a6a48cc6f40d" />
+)
+
+### Screenshot 4C — HEAD and refs/heads/main
+![4C](<img width="1805" height="208" alt="image" src="https://github.com/user-attachments/assets/bb33072c-7a08-4060-82f1-45ed78a82061" />
+)
+
+### Screenshot Final — Integration test passing
+![Final](<img width="721" height="781" alt="image" src="https://github.com/user-attachments/assets/1c4cc2af-5708-4e9e-8b95-de7794dc8e9a" />
+)
+
+---
+
+## Analysis Questions
+
+### Q5.1 — Implementing pes checkout
+To implement `pes checkout <branch>`, HEAD must be updated to `ref: refs/heads/<branch>` and the working directory must be updated to match the target branch's tree. This involves reading the target branch's commit hash, walking its tree recursively and writing every blob to the corresponding file path. Files in the old tree but not the new one must be deleted. The complexity comes from diffing old and new trees, updating the index to match, and handling interruptions without corrupting the repo.
+
+### Q5.2 — Detecting dirty working directory
+A file is dirty when all three versions differ — working directory, index entry, and target branch's tree entry. For every path in the target tree, check if it exists in the index and whether hashes match. For the working directory, use `stat()` to compare mtime and size against the index — if different, recompute the blob hash and compare. If all three hashes differ, the file is in conflict and checkout must be refused.
+
+### Q5.3 — Detached HEAD
+In detached HEAD state, `.pes/HEAD` contains a raw commit hash instead of `ref: refs/heads/main`. New commits are stored normally but no branch file is updated, making the commits unreachable from any branch. They will eventually be deleted by garbage collection. To recover, the user must create a new branch pointing at the current HEAD hash by writing it into `.pes/refs/heads/recovery` and updating HEAD to `ref: refs/heads/recovery` before GC runs.
+
+### Q6.1 — Garbage Collection Algorithm
+Starting from all branch tips under `.pes/refs/heads/`, perform BFS/DFS. For each commit, mark its hash reachable, follow its tree pointer and recursively mark every tree and blob, then follow the parent pointer and repeat. Store reachable hashes in a hash set for O(1) lookup. Then enumerate every file under `.pes/objects/` and delete any whose hash is not in the reachable set. For 100,000 commits and 50 branches, with roughly 3 objects per commit on average, approximately 300,000 objects would need to be visited.
+
+### Q6.2 — GC Race Condition
+A commit writes a new blob to the object store. GC then runs its mark phase — the blob exists but is not yet reachable from any branch because the commit object has not been written yet. GC deletes the blob as unreachable. The commit then writes the commit object referencing the now-deleted blob, corrupting the repository. Git avoids this with a two-week grace period — objects newer than 14 days are never deleted regardless of reachability. Git also uses lock files on reference updates so GC and commit cannot interleave at the critical section.
