@@ -3,6 +3,7 @@
 // The index is a text file (.pes/index) that tracks which files are
 // staged for the next commit. It maps file paths to their blob hashes
 // and stores metadata for fast change detection.
+// Phase 3: MAX_INDEX_ENTRIES restored to 10000
 
 #ifndef INDEX_H
 #define INDEX_H
