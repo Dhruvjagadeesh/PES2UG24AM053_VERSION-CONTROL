@@ -17,6 +17,8 @@
 // Phase 4: parent commit reading from HEAD
 // Phase 4: author and timestamp
 // Phase 4: serialize and write commit object
+// Phase 4: update HEAD after commit
+
 #include "commit.h"
 #include "index.h"
 #include "tree.h"
