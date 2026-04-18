@@ -16,6 +16,7 @@
 // TODO functions:     index_load, index_save, index_add
 // Phase 3: index_load implemented
 // Phase 3: MAX_INDEX_ENTRIES restored to 10000
+// Phase 3: index_save with atomic rename
 
 #include "index.h"
 #include "tree.h"
