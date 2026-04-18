@@ -15,6 +15,7 @@
 // TODO functions:     commit_create
 // Phase 4: tree building in commit_create
 // Phase 4: parent commit reading from HEAD
+// Phase 4: author and timestamp
 #include "commit.h"
 #include "index.h"
 #include "tree.h"
