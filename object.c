@@ -9,6 +9,7 @@
 // TODO functions:     object_write, object_read
 // Phase 1: header construction complete
 // Phase 1: SHA-256 hashing added
+// Phase 1: atomic write via temp file and rename
 
 #include "pes.h"
 #include <stdio.h>
