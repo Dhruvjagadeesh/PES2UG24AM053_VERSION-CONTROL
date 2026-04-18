@@ -607,41 +607,34 @@ The following questions cover filesystem concepts beyond the implementation scop
 ## Lab Report — PES2UG24AM053
 
 ### Screenshot 1A — test_objects passing
-![1A](<img width="1799" height="341" alt="image" src="https://github.com/user-attachments/assets/9d5b1cf6-ea21-4e6d-bb40-58bf9919bd06" />)
+![1A](screenshots/1A.png)
 
 ### Screenshot 1B — Sharded object directory
-![1B](<img width="1826" height="223" alt="image" src="https://github.com/user-attachments/assets/7efc1611-4ee9-46ab-9093-dedf6d8b1877" />)
+![1B](screenshots/1B.png)
 
 ### Screenshot 2A — test_tree passing
-![2A](<img width="1697" height="242" alt="image" src="https://github.com/user-attachments/assets/c90d3cef-b865-47d7-b41a-064dc6389d84" />)
+![2A](screenshots/2A.png)
 
 ### Screenshot 2B — xxd of tree object
-![2B](<img width="1649" height="773" alt="image" src="https://github.com/user-attachments/assets/1db8dd14-ec4e-40b6-b8b6-2df71e5968a9" />)
+![2B](screenshots/2B.png)
 
 ### Screenshot 3A — pes init → add → status
-![3A](<img width="1619" height="760" alt="image" src="https://github.com/user-attachments/assets/52395b2e-caa2-47cd-b797-e86480e74e8a" />
-)
+![3A](screenshots/3A.png)
 
 ### Screenshot 3B — cat .pes/index
-![3B](<img width="1776" height="206" alt="image" src="https://github.com/user-attachments/assets/59d105c3-1a12-4486-bff7-fb519c1bafea" />
-)
+![3B](screenshots/3B.png)
 
 ### Screenshot 4A — pes log with 3 commits
-![4A](<img width="1094" height="773" alt="image" src="https://github.com/user-attachments/assets/6fb56b1b-7b08-4578-8a67-7b6d788510bf" />
-)
+![4A](screenshots/4A.png)
 
 ### Screenshot 4B — find .pes -type f
-![4B](<img width="1800" height="576" alt="image" src="https://github.com/user-attachments/assets/d9def598-6016-40ee-8305-a6a48cc6f40d" />
-)
+![4B](screenshots/4B.png)
 
 ### Screenshot 4C — HEAD and refs/heads/main
-![4C](<img width="1805" height="208" alt="image" src="https://github.com/user-attachments/assets/bb33072c-7a08-4060-82f1-45ed78a82061" />
-)
+![4C](screenshots/4C.png)
 
 ### Screenshot Final — Integration test passing
-![Final](<img width="721" height="781" alt="image" src="https://github.com/user-attachments/assets/1c4cc2af-5708-4e9e-8b95-de7794dc8e9a" />
-)
-
+![Final](screenshots/Final.png)
 ---
 
 ## Analysis Questions
